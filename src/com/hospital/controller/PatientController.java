@@ -1,47 +1,70 @@
 package com.hospital.controller;
 
 import com.hospital.dao.PatientDAO;
-import com.hospital.dao.PatientFileDAO;
+import com.hospital.dao.PatientTextFileDAO; // <-- MODIFIED
 import com.hospital.model.Patient;
 
+import java.io.BufferedWriter; // <-- NEW
+import java.io.FileWriter; // <-- NEW
+import java.io.IOException; // <-- NEW
+import java.nio.file.Path; // <-- NEW
+import java.nio.file.Paths; // <-- NEW
+import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.text.NumberFormat;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * PatientController.java
+ * The "brain" of the application.
+ *
+ * This version is UPDATED to:
+ * 1. Use the new PatientTextFileDAO (which saves to .txt AND .dat).
+ * 2. Re-implement the "printBill" logic, as it is now a controller-level task.
+ */
 public class PatientController {
 
     private PatientDAO patientDAO;
     private DateTimeFormatter dateFormatter;
     private NumberFormat currencyFormatter;
-    private NumberFormat doubleFormatter;
+    private final String DATA_DIR_NAME = ".hospitalapp"; // For saving bills
+    private final Path dataDir; // For saving bills
 
     public PatientController() {
-        this.patientDAO = new PatientFileDAO();
+        // --- THIS IS THE BIG CHANGE ---
+        // We are now using the Text File DAO
+        // This DAO will automatically save a .dat backup!
+        this.patientDAO = new PatientTextFileDAO();
+        // ------------------------------
+        
         this.dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        
-        this.doubleFormatter = NumberFormat.getNumberInstance(Locale.US);
-        this.doubleFormatter.setMinimumFractionDigits(1);
-        this.doubleFormatter.setMaximumFractionDigits(2);
+        this.currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("en", "IN")); // For ₹
 
-        this.currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("en", "IN"));
+        // Set up the directory path for saving bills
+        String homeDir = System.getProperty("user.home");
+        this.dataDir = Paths.get(homeDir, DATA_DIR_NAME);
     }
-    
-    public Patient addNewPatient(String name, String ageStr, String contact, String address,
-                                   String admissionDateStr, String doctor, String treatment,
-                                   String history, String baseBillStr, String insuranceStr) throws Exception {
-        
-        if (name == null || name.trim().isEmpty()) {
-            throw new Exception("Patient Name is required.");
-        }
-        
-        int age = validateAndParseInt(ageStr, "Age", 0, 150);
-        double baseBill = validateAndParseDouble(baseBillStr, "Base Bill", 0.0);
-        double insurance = validateAndParseDouble(insuranceStr, "Insurance %", 0.0, 100.0);
-        LocalDate admissionDate = validateAndParseDate(admissionDateStr, "Admission Date");
 
+    /**
+     * Validates and adds a new patient.
+     */
+    public Patient addNewPatient(
+            String name, String ageStr, String contact, String address, String admissionDateStr,
+            String doctor, String treatment, String history, String baseBillStr, String insuranceStr)
+            throws Exception {
+
+        // --- 1. Validate All Inputs ---
+        if (name == null || name.trim().isEmpty()) {
+            throw new Exception("Patient Name cannot be empty.");
+        }
+        int age = validateInteger(ageStr, 0, 150, "Age");
+        double baseBill = validateDouble(baseBillStr, 0, Double.MAX_VALUE, "Base Bill");
+        double insurance = validateDouble(insuranceStr, 0, 100, "Insurance %");
+        LocalDate admissionDate = validateDate(admissionDateStr, "Admission Date", true); // Required
+
+        // --- 2. Create Patient Object ---
         Patient patient = new Patient();
         patient.setName(name.trim());
         patient.setAge(age);
@@ -57,41 +80,44 @@ public class PatientController {
         patient.setDischarged(false);
         patient.setDateOfDischarge(null);
 
-        patientDAO.addPatient(patient);
-        
-        return patient;
+        // --- 3. Save via DAO and return ---
+        // The DAO will generate and set the ID
+        return patientDAO.addPatient(patient);
     }
 
-    public void updatePatient(String patientId, String name, String ageStr, String contact, String address,
-                                String admissionDateStr, String doctor, String treatment,
-                                String history, String baseBillStr, String insuranceStr,
-                                boolean isDischarged, String dischargeDateStr) throws Exception {
+    /**
+     * Validates and updates an existing patient.
+     */
+    public void updatePatient(
+            String patientId, String name, String ageStr, String contact, String address, String admissionDateStr,
+            String doctor, String treatment, String history, String baseBillStr, String insuranceStr,
+            boolean isDischarged, String dischargeDateStr)
+            throws Exception {
 
+        // --- 1. Get Existing Patient ---
         Patient patient = patientDAO.getPatient(patientId);
         if (patient == null) {
-            throw new Exception("Could not find patient to update.");
+            throw new Exception("Failed to find patient to update.");
         }
-        
-        if (name == null || name.trim().isEmpty()) {
-            throw new Exception("Patient Name is required.");
-        }
-        int age = validateAndParseInt(ageStr, "Age", 0, 150);
-        double baseBill = validateAndParseDouble(baseBillStr, "Base Bill", 0.0);
-        double insurance = validateAndParseDouble(insuranceStr, "Insurance %", 0.0, 100.0);
-        LocalDate admissionDate = validateAndParseDate(admissionDateStr, "Admission Date");
-        LocalDate dischargeDate = null;
 
+        // --- 2. Validate All Inputs ---
+        if (name == null || name.trim().isEmpty()) {
+            throw new Exception("Patient Name cannot be empty.");
+        }
+        int age = validateInteger(ageStr, 0, 150, "Age");
+        double baseBill = validateDouble(baseBillStr, 0, Double.MAX_VALUE, "Base Bill");
+        double insurance = validateDouble(insuranceStr, 0, 100, "Insurance %");
+        LocalDate admissionDate = validateDate(admissionDateStr, "Admission Date", true); // Required
+        LocalDate dischargeDate = null;
+        
         if (isDischarged) {
-            if (dischargeDateStr == null || dischargeDateStr.trim().isEmpty()) {
-                throw new Exception("Discharge Date is required if 'Is Discharged' is checked.");
-            }
-            dischargeDate = validateAndParseDate(dischargeDateStr, "Discharge Date");
-            
+            dischargeDate = validateDate(dischargeDateStr, "Discharge Date", true); // Required if checked
             if (dischargeDate.isBefore(admissionDate)) {
                 throw new Exception("Discharge Date cannot be before Admission Date.");
             }
         }
 
+        // --- 3. Update Patient Object ---
         patient.setName(name.trim());
         patient.setAge(age);
         patient.setContact(contact.trim());
@@ -106,24 +132,76 @@ public class PatientController {
         patient.setDischarged(isDischarged);
         patient.setDateOfDischarge(dischargeDate);
 
+        // --- 4. Save via DAO ---
         patientDAO.updatePatient(patient);
     }
-    
+
+    /**
+     * Discharges a patient (sets date to today).
+     */
     public void dischargePatient(String patientId) throws Exception {
         Patient patient = patientDAO.getPatient(patientId);
         if (patient == null) {
-            throw new Exception("Could not find patient to discharge.");
-        }
-        if (patient.isDischarged()) {
-            throw new Exception("Patient is already discharged.");
+            throw new Exception("Failed to find patient to discharge.");
         }
         
         patient.setDischarged(true);
         patient.setDateOfDischarge(LocalDate.now());
-        
         patientDAO.updatePatient(patient);
     }
     
+    /**
+     * --- NEW: Print Bill Logic ---
+     * This logic now lives in the controller.
+     * It creates a formatted .txt file for the given patient.
+     * @return The absolute path to the saved bill file.
+     */
+    public String printBill(String patientId) throws Exception {
+        Patient patient = getPatient(patientId);
+        if (patient == null) {
+            throw new Exception("Patient not found.");
+        }
+
+        String billFileName = "Bill_" + patient.getPatientId() + "_" + patient.getName().replace(" ", "_") + ".txt";
+        Path billPath = dataDir.resolve(billFileName);
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(billPath.toFile()))) {
+            writer.write("****************************************"); writer.newLine();
+            writer.write("         NEWLIFE HOSPITAL BILL          "); writer.newLine();
+            writer.write("****************************************"); writer.newLine();
+            writer.newLine();
+            writer.write("Patient ID:    " + patient.getPatientId()); writer.newLine();
+            writer.write("Patient Name:  " + patient.getName()); writer.newLine();
+            writer.write("Doctor:        " + patient.getDoctorAssigned()); writer.newLine();
+            writer.newLine();
+            writer.write("----------------------------------------"); writer.newLine();
+            writer.write("          BILLING DETAILS               "); writer.newLine();
+            writer.write("----------------------------------------"); writer.newLine();
+            writer.newLine();
+            writer.write(String.format("%-25s: %s%n", "Base Bill Amount", formatCurrency(patient.getBaseBillAmount())));
+            writer.write(String.format("%-25s: %.1f %%", "Insurance Discount", patient.getInsuranceDiscountPercent())); writer.newLine();
+            writer.newLine();
+            writer.write("----------------------------------------"); writer.newLine();
+            writer.write(String.format("%-25s: %s%n", "TOTAL FINAL BILL", formatCurrency(patient.getFinalBillAmount())));
+            writer.write("----------------------------------------"); writer.newLine();
+            writer.newLine();
+            writer.write("Status: " + (patient.isDischarged() ? "Discharged" : "Admitted")); writer.newLine();
+            if (patient.isDischarged() && patient.getDateOfDischarge() != null) {
+                writer.write("Discharge Date: " + formatDate(patient.getDateOfDischarge())); writer.newLine();
+            }
+            writer.newLine();
+            writer.write("Thank you and get well soon!"); writer.newLine();
+            
+        } catch (IOException e) {
+            throw new Exception("Could not write bill file: " + e.getMessage());
+        }
+        
+        return billPath.toAbsolutePath().toString();
+    }
+
+
+    // --- Data Passthrough Methods ---
+
     public Patient getPatient(String patientId) throws Exception {
         return patientDAO.getPatient(patientId);
     }
@@ -131,35 +209,19 @@ public class PatientController {
     public List<Patient> getAllPatients() throws Exception {
         return patientDAO.getAllPatients();
     }
-    
+
     public double getTotalCollectedBills() throws Exception {
-        double total = 0.0;
-        for (Patient p : patientDAO.getAllPatients()) {
-            if (p.isDischarged()) {
-                total += p.getFinalBillAmount();
-            }
-        }
-        return total;
+        return getAllPatients().stream()
+                .filter(Patient::isDischarged)
+                .mapToDouble(Patient::getFinalBillAmount)
+                .sum();
     }
 
-    public String formatDate(LocalDate date) {
-        if (date == null) {
-            return "";
-        }
-        return date.format(dateFormatter);
-    }
+    // --- Validation & Formatting ---
 
-    public String formatDouble(double d) {
-        return doubleFormatter.format(d);
-    }
-    
-    public String formatCurrency(double d) {
-        return currencyFormatter.format(d);
-    }
-
-    private int validateAndParseInt(String text, String fieldName, int min, int max) throws Exception {
+    private int validateInteger(String input, int min, int max, String fieldName) throws Exception {
         try {
-            int value = Integer.parseInt(text.trim());
+            int value = Integer.parseInt(input.trim());
             if (value < min || value > max) {
                 throw new Exception(fieldName + " must be between " + min + " and " + max + ".");
             }
@@ -169,33 +231,24 @@ public class PatientController {
         }
     }
 
-    private double validateAndParseDouble(String text, String fieldName, double min) throws Exception {
+    private double validateDouble(String input, double min, double max, String fieldName) throws Exception {
         try {
-            double value = Double.parseDouble(text.trim());
-            if (value < min) {
-                throw new Exception(fieldName + " must be " + min + " or greater.");
-            }
-            return value;
-        } catch (NumberFormatException e) {
-            throw new Exception(fieldName + " must be a valid number.");
-        }
-    }
-
-    private double validateAndParseDouble(String text, String fieldName, double min, double max) throws Exception {
-        try {
-            double value = Double.parseDouble(text.trim());
+            double value = Double.parseDouble(input.trim());
             if (value < min || value > max) {
                 throw new Exception(fieldName + " must be between " + min + " and " + max + ".");
             }
             return value;
         } catch (NumberFormatException e) {
-            throw new Exception(fieldName + " must be a valid number.");
+            throw new Exception(fieldName + " must be a valid number (e.g., 100.0 or 50).");
         }
     }
-    
-    private LocalDate validateAndParseDate(String dateStr, String fieldName) throws Exception {
+
+    private LocalDate validateDate(String dateStr, String fieldName, boolean isRequired) throws Exception {
         if (dateStr == null || dateStr.trim().isEmpty()) {
-            throw new Exception(fieldName + " is required.");
+            if (isRequired) {
+                throw new Exception(fieldName + " cannot be empty. Use YYYY-MM-DD format.");
+            }
+            return null; // Not required and empty, so return null
         }
         try {
             return LocalDate.parse(dateStr.trim(), dateFormatter);
@@ -203,4 +256,18 @@ public class PatientController {
             throw new Exception(fieldName + " must be in YYYY-MM-DD format.");
         }
     }
+
+    public String formatDate(LocalDate date) {
+        return (date != null) ? date.format(dateFormatter) : "";
+    }
+
+    public String formatCurrency(double amount) {
+        return currencyFormatter.format(amount);
+    }
+
+    public String formatDouble(double amount) {
+        // Formats to 2 decimal places, e.g., "50.00" or "12.50"
+        return String.format("%.2f", amount);
+    }
 }
+

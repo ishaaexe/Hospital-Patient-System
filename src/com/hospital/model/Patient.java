@@ -3,27 +3,43 @@ package com.hospital.model;
 import java.io.Serializable;
 import java.time.LocalDate;
 
+/**
+ * Patient.java
+ * The data model for a Patient.
+ * This version implements Serializable so it can be saved to a .dat file (Byte Stream)
+ * as well as a .txt file.
+ */
 public class Patient implements Serializable {
-    
-    private static final long serialVersionUID = 2L;
+
+    // This ID is for the serialization (Byte Stream)
+    private static final long serialVersionUID = 1L;
 
     private String patientId;
     private String name;
     private int age;
     private String contact;
     private String address;
-
-    private LocalDate dateOfAdmission;
-    private LocalDate dateOfDischarge;
-    
+    private String medicalHistory;
     private String doctorAssigned;
     private String treatmentGiven;
-    private String medicalHistory;
+    private LocalDate dateOfAdmission;
+    private LocalDate dateOfDischarge;
     private boolean isDischarged;
-
     private double baseBillAmount;
     private double insuranceDiscountPercent;
     private double finalBillAmount;
+
+    public Patient() {}
+
+    /**
+     * Calculates the final bill based on the base bill and insurance.
+     */
+    public void calculateFinalBill() {
+        double discount = baseBillAmount * (insuranceDiscountPercent / 100.0);
+        this.finalBillAmount = baseBillAmount - discount;
+    }
+
+    // --- Getters and Setters ---
 
     public String getPatientId() {
         return patientId;
@@ -65,20 +81,12 @@ public class Patient implements Serializable {
         this.address = address;
     }
 
-    public LocalDate getDateOfAdmission() {
-        return dateOfAdmission;
+    public String getMedicalHistory() {
+        return medicalHistory;
     }
 
-    public void setDateOfAdmission(LocalDate dateOfAdmission) {
-        this.dateOfAdmission = dateOfAdmission;
-    }
-
-    public LocalDate getDateOfDischarge() {
-        return dateOfDischarge;
-    }
-
-    public void setDateOfDischarge(LocalDate dateOfDischarge) {
-        this.dateOfDischarge = dateOfDischarge;
+    public void setMedicalHistory(String medicalHistory) {
+        this.medicalHistory = medicalHistory;
     }
 
     public String getDoctorAssigned() {
@@ -97,12 +105,20 @@ public class Patient implements Serializable {
         this.treatmentGiven = treatmentGiven;
     }
 
-    public String getMedicalHistory() {
-        return medicalHistory;
+    public LocalDate getDateOfAdmission() {
+        return dateOfAdmission;
     }
 
-    public void setMedicalHistory(String medicalHistory) {
-        this.medicalHistory = medicalHistory;
+    public void setDateOfAdmission(LocalDate dateOfAdmission) {
+        this.dateOfAdmission = dateOfAdmission;
+    }
+
+    public LocalDate getDateOfDischarge() {
+        return dateOfDischarge;
+    }
+
+    public void setDateOfDischarge(LocalDate dateOfDischarge) {
+        this.dateOfDischarge = dateOfDischarge;
     }
 
     public boolean isDischarged() {
@@ -136,13 +152,5 @@ public class Patient implements Serializable {
     public void setFinalBillAmount(double finalBillAmount) {
         this.finalBillAmount = finalBillAmount;
     }
-
-    public void calculateFinalBill() {
-        if (baseBillAmount <= 0) {
-            this.finalBillAmount = 0.0;
-            return;
-        }
-        double discount = baseBillAmount * (insuranceDiscountPercent / 100.0);
-        this.finalBillAmount = baseBillAmount - discount;
-    }
 }
+

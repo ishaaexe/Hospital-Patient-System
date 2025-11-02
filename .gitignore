@@ -1,1 +1,5 @@
-/bin/  echo /patients.dat  echo /.hospitalapp/ 
+# Ignore compiled Java code
+/bin/
+
+# Ignore VS Code editor settings
+/.vscode/

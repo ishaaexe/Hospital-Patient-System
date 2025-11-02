@@ -17,6 +17,8 @@ import javax.swing.table.TableRowSorter;
 import javax.swing.RowFilter;
 import javax.swing.JTextArea;
 import javax.swing.JCheckBox;
+import javax.swing.ImageIcon;
+import javax.swing.SwingConstants;
 
 import java.awt.BorderLayout;
 import java.awt.GridLayout;
@@ -38,13 +40,13 @@ import java.util.ArrayList;
 public class PatientPanel extends JPanel {
 
     private JTextField txtPatientId, txtName, txtContact, txtAge,
-                        txtAdmissionDate, txtDischargeDate,
-                        txtDoctor, txtTreatment,
-                        txtBaseBill, txtInsurancePercent, txtFinalBill;
+                       txtAdmissionDate, txtDischargeDate,
+                       txtDoctor, txtTreatment,
+                       txtBaseBill, txtInsurancePercent, txtFinalBill;
     private JTextArea txtAddress, txtHistory;
     private JCheckBox chkDischarged;
     
-    private JButton btnAdd, btnUpdate, btnDischarge, btnClear;
+    private JButton btnAdd, btnUpdate, btnDischarge, btnClear, btnPrintBill;
 
     private JTextField txtSearch;
     
@@ -76,7 +78,6 @@ public class PatientPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         JPanel formPanel = createFormPanel();
-
         JPanel tablePanel = createTablePanel();
 
         add(formPanel, BorderLayout.NORTH);
@@ -86,7 +87,7 @@ public class PatientPanel extends JPanel {
     private JPanel createFormPanel() {
         JPanel formContainerPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(0, 0, 5, 0);
+        gbc.insets = new Insets(0, 0, 5, 0); 
         gbc.fill = GridBagConstraints.BOTH;
 
         JPanel personalPanel = createPersonalInfoPanel();
@@ -95,29 +96,29 @@ public class PatientPanel extends JPanel {
 
         gbc.gridx = 0;
         gbc.gridy = 0;
-        gbc.weightx = 0.4;
-        gbc.weighty = 1.0;
+        gbc.weightx = 0.4; 
+        gbc.weighty = 1.0; 
         formContainerPanel.add(personalPanel, gbc);
 
         gbc.gridx = 1;
         gbc.gridy = 0;
-        gbc.weightx = 0.4;
-        gbc.insets = new Insets(0, 5, 5, 5);
+        gbc.weightx = 0.4; 
+        gbc.insets = new Insets(0, 5, 5, 5); 
         formContainerPanel.add(medicalPanel, gbc);
 
         gbc.gridx = 2;
         gbc.gridy = 0;
-        gbc.weightx = 0.2;
+        gbc.weightx = 0.2; 
         formContainerPanel.add(billingPanel, gbc);
 
         JPanel buttonPanel = createButtonPanel();
         gbc.gridx = 0;
         gbc.gridy = 1;
-        gbc.gridwidth = 3;
+        gbc.gridwidth = 3; 
         gbc.weightx = 1.0;
-        gbc.weighty = 0.0;
+        gbc.weighty = 0.0; 
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(5, 0, 0, 0);
+        gbc.insets = new Insets(5, 0, 0, 0); 
         formContainerPanel.add(buttonPanel, gbc);
 
         return formContainerPanel;
@@ -141,13 +142,13 @@ public class PatientPanel extends JPanel {
         gbc.gridy++;
         panel.add(new JLabel("Contact:"), gbc);
         gbc.gridy++;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
+        gbc.anchor = GridBagConstraints.NORTHWEST; 
         panel.add(new JLabel("Address:"), gbc);
 
         gbc.gridx = 1;
         gbc.gridy = 0;
         gbc.weightx = 1.0;
-        gbc.anchor = GridBagConstraints.CENTER;
+        gbc.anchor = GridBagConstraints.CENTER; 
         txtPatientId = new JTextField(15);
         txtPatientId.setEditable(false);
         txtPatientId.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -166,7 +167,7 @@ public class PatientPanel extends JPanel {
         panel.add(txtContact, gbc);
 
         gbc.gridy++;
-        gbc.weighty = 1.0;
+        gbc.weighty = 1.0; 
         gbc.fill = GridBagConstraints.BOTH;
         txtAddress = new JTextArea(3, 15);
         panel.add(new JScrollPane(txtAddress), gbc);
@@ -281,11 +282,15 @@ public class PatientPanel extends JPanel {
         btnUpdate = new JButton("Update Patient");
         btnDischarge = new JButton("Discharge Patient");
         btnClear = new JButton("Clear Form");
+        btnPrintBill = new JButton("Print Bill");
 
         buttonPanel.add(btnAdd);
         buttonPanel.add(btnUpdate);
         buttonPanel.add(btnDischarge);
         buttonPanel.add(btnClear);
+        
+        buttonPanel.add(new JLabel(" | ")); 
+        buttonPanel.add(btnPrintBill);
         
         return buttonPanel;
     }
@@ -334,6 +339,7 @@ public class PatientPanel extends JPanel {
         btnUpdate.addActionListener(e -> updatePatient());
         btnDischarge.addActionListener(e -> dischargePatient());
         btnClear.addActionListener(e -> clearForm());
+        btnPrintBill.addActionListener(e -> printBill());
 
         patientTable.addMouseListener(new MouseAdapter() {
             @Override
@@ -448,7 +454,21 @@ public class PatientPanel extends JPanel {
             }
         }
     }
-
+    
+    private void printBill() {
+        if (selectedPatient == null) {
+            showError("Please select a patient from the table to print their bill.");
+            return;
+        }
+        
+        try {
+            String filePath = controller.printBill(selectedPatient.getPatientId());
+            showMessage("Bill saved successfully!\n" +
+                        "File created at: " + filePath);
+        } catch (Exception e) {
+            showError("Error printing bill: " + e.getMessage());
+        }
+    }
 
     private void filterTable() {
         String searchText = txtSearch.getText().trim();
@@ -469,7 +489,7 @@ public class PatientPanel extends JPanel {
     private void loadSelectedPatientDataToForm() {
         try {
             int viewRow = patientTable.getSelectedRow();
-            if (viewRow == -1) return;
+            if (viewRow == -1) return; 
             
             int modelRow = patientTable.convertRowIndexToModel(viewRow);
             String patientId = (String) tableModel.getValueAt(modelRow, 0);
@@ -499,11 +519,11 @@ public class PatientPanel extends JPanel {
             chkDischarged.setSelected(selectedPatient.isDischarged());
             txtDischargeDate.setText(controller.formatDate(selectedPatient.getDateOfDischarge()));
             
-            setFormState(false);
+            setFormState(false); 
 
         } catch (Exception e) {
             showError("Error loading patient data: " + e.getMessage());
-            this.selectedPatient = null;
+            this.selectedPatient = null; 
         }
     }
 
@@ -528,7 +548,7 @@ public class PatientPanel extends JPanel {
         
         patientTable.clearSelection();
         this.selectedPatient = null;
-        setFormState(true);
+        setFormState(true); 
     }
 
     private void refreshTableData() {
@@ -561,6 +581,7 @@ public class PatientPanel extends JPanel {
         btnAdd.setEnabled(isNewPatient);
         btnUpdate.setEnabled(!isNewPatient);
         btnDischarge.setEnabled(!isNewPatient && (selectedPatient != null && !selectedPatient.isDischarged()));
+        btnPrintBill.setEnabled(!isNewPatient);
         
         txtAdmissionDate.setEditable(!isNewPatient); 
     }
@@ -573,3 +594,4 @@ public class PatientPanel extends JPanel {
         JOptionPane.showMessageDialog(this, message, "Error", JOptionPane.ERROR_MESSAGE);
     }
 }
+
